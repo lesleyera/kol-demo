@@ -6,7 +6,7 @@ import os # 파일 경로를 위한 모듈
 import altair as alt # 차트 라이브러리
 
 # -----------------------------------------------------------------
-# 1. Google Sheets 인증 및 데이터 로드 (배포/로컬 겸용 수정)
+# 1. Google Sheets 인증 및 데이터 로드 (배포/로컬 겸용 최종본)
 # -----------------------------------------------------------------
 
 @st.cache_data(ttl=60) # 60초마다 데이터를 새로고침 (캐시)
@@ -22,6 +22,7 @@ def load_data_from_gsheet():
         gc = None # gc 변수 초기화
         
         # --- (2-A) 로컬 파일 먼저 확인 ---
+        # (사장님 PC에서 실행할 때)
         script_dir = os.path.dirname(os.path.abspath(__file__))
         creds_path = os.path.join(script_dir, 'google_credentials.json')
         
@@ -31,6 +32,7 @@ def load_data_from_gsheet():
             st.info("✅ 1/4: Local 'google_credentials.json' 파일로 인증 성공")
         
         # --- (2-B) 로컬 파일이 없으면, Streamlit Cloud Secrets 확인 ---
+        # (GitHub에 올려서 배포할 때)
         elif 'gcp_service_account' in st.secrets:
             # Streamlit Cloud (배포 환경)
             creds_dict = st.secrets['gcp_service_account']
