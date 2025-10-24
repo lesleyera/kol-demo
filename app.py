@@ -15,7 +15,7 @@ activities_df = None
 def get_max_value(df, column, is_percentage=False):
     """주어진 컬럼의 최대값보다 10% 더 큰 값을 계산합니다."""
     if df.empty or column not in df.columns:
-        return 1.0 if is_percentage else 10 # 기본값
+        return 100 if is_percentage else 10 # 기본값
     
     max_val = df[column].max()
     
@@ -23,12 +23,12 @@ def get_max_value(df, column, is_percentage=False):
         # 백분율은 최대 100%로 고정
         return 100 
     else:
-        # 건수는 최대값보다 10% 크게 설정
+        # 건수/금액은 최대값보다 10% 크게 설정
         return max_val * 1.1 if max_val > 0 else 10
 
 
 # -----------------------------------------------------------------
-# 1. Google Sheets 인증 및 데이터 로드 (이전과 동일)
+# 1. Google Sheets 인증 및 데이터 로드 
 # -----------------------------------------------------------------
 
 @st.cache_data(ttl=60) 
@@ -39,7 +39,7 @@ def load_data_from_gsheet():
     WORKSHEET2_NAME = "Activities"
     
     try:
-        # --- 인증 로직 (이전과 동일) ---
+        # --- 인증 로직 ---
         gc = None
         script_dir = os.path.dirname(os.path.abspath(__file__))
         creds_path = os.path.join(script_dir, 'google_credentials.json')
@@ -58,7 +58,7 @@ def load_data_from_gsheet():
         master_df = get_as_dataframe(sh.worksheet(WORKSHEET1_NAME)).dropna(how='all') 
         activities_df = get_as_dataframe(sh.worksheet(WORKSHEET2_NAME)).dropna(how='all')
         
-        # --- 데이터 타입 변환 및 계산 (이전과 동일) ---
+        # --- 데이터 타입 변환 및 계산 ---
         master_df['Contract_End'] = pd.to_datetime(master_df['Contract_End'], errors='coerce')
         activities_df['Due_Date'] = pd.to_datetime(activities_df['Due_Date'], errors='coerce')
         master_df['Budget (USD)'] = pd.to_numeric(master_df['Budget (USD)'], errors='coerce').fillna(0)
@@ -70,6 +70,9 @@ def load_data_from_gsheet():
         master_df = pd.merge(master_df, activity_summary[['Kol_ID', 'Completion_Rate']], on='Kol_ID', how='left').fillna({'Completion_Rate': 0})
         master_df['Utilization_Rate'] = (master_df['Spent (USD)'] / master_df['Budget (USD)']) * 100
         master_df['Utilization_Rate'] = master_df['Utilization_Rate'].fillna(0).apply(lambda x: min(x, 100))
+        
+        # 💡 YearMonth 컬럼을 데이터 로드 직후 생성 (KeyError 방지)
+        activities_df['YearMonth'] = activities_df['Due_Date'].dt.to_period('M').astype(str)
 
         st.success("🎉 데이터 로드 및 초기 계산 완료!")
         return master_df, activities_df
@@ -79,7 +82,7 @@ def load_data_from_gsheet():
         return None, None
 
 # -----------------------------------------------------------------
-# 2. 조건부 서식 함수 정의 (이전과 동일)
+# 2. 조건부 서식 함수 정의 
 # -----------------------------------------------------------------
 
 def highlight_master_row(row, today, alert_days=30):
@@ -108,7 +111,7 @@ def highlight_activity_row(row, today):
     return [''] * len(row)
 
 # -----------------------------------------------------------------
-# 3. Streamlit UI 그리기 (수정 반영)
+# 3. Streamlit UI 그리기 
 # -----------------------------------------------------------------
 
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
@@ -160,16 +163,16 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 2. 주요 차트 현황 (3x2 레이아웃 및 축 설정)
+        # 2. 주요 차트 현황 (3x2 레이아웃, 축, 레이블 수정 완료)
         # ===================================
-        st.header("2. 주요 차트 현황 (3x2 레이아웃)")
+        st.header("2. 주요 차트 현황")
         
         # --- 💡 축 최대값 계산 ---
         max_count = get_max_value(activities_df.groupby('YearMonth').size().reset_index(name='Count'), 'Count')
         max_budget = get_max_value(master_df.groupby('Country')['Budget (USD)'].sum().reset_index(name='Total_Budget'), 'Total_Budget')
         
         # -----------------------------------
-        # Row 1: 차트 3개
+        # Row 1: 차트 3개 (파이차트, 파이차트, 혼합 세로 막대+선)
         # -----------------------------------
         col_r1_c1, col_r1_c2, col_r1_c3 = st.columns(3)
 
@@ -203,7 +206,7 @@ if master_df is not None and activities_df is not None:
             # Bar Chart (Volume)
             bar_chart = alt.Chart(timeline_data).mark_bar(color='#4c78a8').encode(
                 x=alt.X('YearMonth', title='월별 마감일', sort=timeline_data['YearMonth'].tolist()),
-                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_count])), # 💡 축 최대값 설정
+                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_count])), 
                 tooltip=['YearMonth', alt.Tooltip('Count', title='활동 건수', format='d')]
             )
 
@@ -230,7 +233,7 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # -----------------------------------
-        # Row 2: 차트 3개
+        # Row 2: 차트 3개 (꺾은선, 혼합 가로 막대+선, 세로 막대)
         # -----------------------------------
         col_r2_c1, col_r2_c2, col_r2_c3 = st.columns(3)
 
@@ -244,7 +247,7 @@ if master_df is not None and activities_df is not None:
 
             line = alt.Chart(completed_timeline).mark_line(point=True, color='green').encode(
                 x=alt.X('YearMonth', title='월별 완료 시점', sort=completed_timeline['YearMonth'].tolist()),
-                y=alt.Y('Completed', title='완료된 활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_completed])), # 💡 축 최대값 설정
+                y=alt.Y('Completed', title='완료된 활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_completed])), 
                 tooltip=['YearMonth', alt.Tooltip('Completed', title='완료된 활동 건수', format='d')]
             )
             
@@ -268,28 +271,28 @@ if master_df is not None and activities_df is not None:
             ).reset_index()
 
             bar = alt.Chart(country_summary).mark_bar().encode(
-                x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f'), scale=alt.Scale(domain=[0, max_budget])), # 💡 축 최대값 설정
+                x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f'), scale=alt.Scale(domain=[0, max_budget])), 
                 y=alt.Y('Country', title='국가', sort='-x'),
                 tooltip=['Country', alt.Tooltip('Total_Budget', title='총 예산', format='$,.0f')]
             )
             line = alt.Chart(country_summary).mark_tick(color='red', thickness=2, size=20).encode(
-                x=alt.X('Avg_Completion', title='평균 완료율 (%)', axis=alt.Axis(format='.1f', domain=[0, 100])), # 💡 100% 고정
+                x=alt.X('Avg_Completion', title='평균 완료율 (%)', axis=alt.Axis(format='.1f', domain=[0, 100])), 
                 y=alt.Y('Country'),
                 tooltip=['Country', alt.Tooltip('Avg_Completion', title='평균 완료율', format='.1f')]
             )
-            chart5 = (bar + line).resolve_scale(y='independent').interactive() # Y축만 독립적으로 해결하도록 변경
+            chart5 = (bar + line).resolve_scale(y='independent').interactive()
             st.altair_chart(chart5, use_container_width=True)
         
         with col_r2_c3:
-            st.subheader("활동 유형별 분포 (세로 막대)")
+            st.subheader("활동 유형별 분포")
             type_counts = activities_df['Activity_Type'].value_counts().reset_index()
             type_counts.columns = ['Type', 'Count']
-
+            
             max_type_count = get_max_value(type_counts, 'Count')
 
             bar = alt.Chart(type_counts).mark_bar().encode(
                 x=alt.X('Type', title='활동 유형'), 
-                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_type_count])), # 💡 축 최대값 설정
+                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_type_count])), 
                 tooltip=['Type', alt.Tooltip('Count', title='활동 건수', format='d')]
             )
             
@@ -308,16 +311,16 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # -----------------------------------
-        # Row 3: 새로운 차트 - 우수 KOL 순위 (폭 좁게)
+        # Row 3: 새로운 차트 - 우수 KOL 순위 (세로 막대, 좁은 폭)
         # -----------------------------------
         st.subheader("🏆 우수 KOL별 완료율 순위 (Top 10)")
         
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar(size=10).encode( # 💡 size=10으로 폭 좁게 설정
-            x=alt.X('Name', title='KOL 이름'), 
-            y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), # 💡 축 최대값 설정
+        bar = alt.Chart(top_kols).mark_bar(size=10).encode(
+            x=alt.X('Name', title='KOL 이름', sort='-y'), # sort='-y'는 Y축 기준 내림차순 정렬
+            y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
             tooltip=['Name', alt.Tooltip('Completion_Rate', title='완료율', format='.1f')]
         )
@@ -338,10 +341,9 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 3. 경고 및 알림 (KPI 다음)
+        # 3. 경고 및 알림 (Alerts)
         # ===================================
         st.header("3. 경고 및 알림 (Alerts)")
-        # ... (이하 동일) ...
         
         today = datetime.now()
         alert_found = False
@@ -412,6 +414,7 @@ if master_df is not None and activities_df is not None:
             if not kol_activities.empty:
                 col_detail1, col_detail2 = st.columns(2)
                 
+                # 상세 KPI 계산
                 total = kol_activities.shape[0]
                 done = kol_activities[kol_activities['Status'] == 'Done'].shape[0]
                 completion_rate = (done / total) * 100 if total > 0 else 0
