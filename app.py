@@ -115,7 +115,49 @@ def highlight_activity_row(row, today):
 
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
 
-# --- 💡💡💡 배경색 강제 설정 CSS 블록 삭제 완료 💡💡💡 ---
+# --- 💡💡💡 CSS: 흰색 배경 강제 설정 💡💡💡 ---
+st.markdown(
+    """
+    <style>
+    /* 전체 배경을 흰색으로 강제 */
+    .stApp {
+        background-color: #FFFFFF !important; 
+        color: #000000 !important; /* 기본 텍스트 검은색 */
+    }
+    /* 헤더 및 부제목 색상 */
+    h1, h2, h3, h4, h5, h6 {
+        color: #111111 !important; 
+    }
+    /* 사이드바 배경 및 텍스트 */
+    [data-testid="stSidebar"] {
+        background-color: #F8F9FA !important; /* 약간 밝은 회색 */
+    }
+    [data-testid="stSidebar"] * {
+        color: #333333 !important; /* 사이드바 텍스트 어둡게 */
+    }
+    /* 테이블 및 차트 배경 */
+    .stDataFrame, .stPlotlyChart {
+        background-color: #FFFFFF !important; /* 흰색 */
+        border: 1px solid #EEEEEE; /* 옅은 테두리 */
+        border-radius: 8px;
+    }
+    /* 알림 메시지 배경 */
+    .stAlert {
+        color: inherit !important; /* 글자색 상속 */
+    }
+    /* 메트릭 값 색상 */
+    [data-testid="stMetricValue"] {
+        color: #222222 !important;
+    }
+    /* 메트릭 레이블 색상 */
+    [data-testid="stMetricLabel"] {
+        color: #555555 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+# ---------------------------------------------------------
 
 st.title("📊 KOL 활동 관리 대시보드 (MVP)")
 
@@ -151,7 +193,7 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 2. 주요 차트 현황 (3x2 레이아웃 및 레이블 수정 완료)
+        # 2. 주요 차트 현황 (3x2 레이아웃 및 축 설정)
         # ===================================
         st.header("2. 주요 차트 현황")
         
@@ -175,7 +217,7 @@ if master_df is not None and activities_df is not None:
             pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Status', alt.Tooltip('Count', title='활동 건수', format='d')])
             
             # Text Label for Pie Chart (옆에 위치)
-            text_labels = base.mark_text(radius=120, fill='black', fontSize=14).encode( 
+            text_labels = base.mark_text(radius=120, fill='black', fontSize=14).encode( # 💡 검은색 텍스트
                 text=alt.Text('Count', format='d'),
                 order=alt.Order('Count', sort='descending')
             )
@@ -194,7 +236,7 @@ if master_df is not None and activities_df is not None:
             pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Type', alt.Tooltip('Count', title='KOL 건수', format='d')])
             
             # Text Label for Pie Chart (옆에 위치)
-            text_labels = base.mark_text(radius=120, fill='black', fontSize=14).encode( 
+            text_labels = base.mark_text(radius=120, fill='black', fontSize=14).encode( # 💡 검은색 텍스트
                 text=alt.Text('Count', format='d'),
                 order=alt.Order('Count', sort='descending')
             )
@@ -218,7 +260,7 @@ if master_df is not None and activities_df is not None:
                 align='center',
                 baseline='bottom',
                 dy=-5, 
-                color='black' 
+                color='black' # 💡 검은색 텍스트
             ).encode(
                 text=alt.Text('Count', format='d')
             )
@@ -285,7 +327,7 @@ if master_df is not None and activities_df is not None:
                 align='left',
                 baseline='middle',
                 dx=5,
-                color='black' 
+                color='black' # 💡 검은색 텍스트
             ).encode(
                 text=alt.Text('Total_Budget', format='$,.0f')
             )
@@ -309,7 +351,7 @@ if master_df is not None and activities_df is not None:
                 align='center',
                 baseline='bottom',
                 dy=-5,
-                color='black' 
+                color='black' # 💡 검은색 텍스트
             ).encode(
                 text=alt.Text('Count', format='d')
             )
@@ -327,7 +369,7 @@ if master_df is not None and activities_df is not None:
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar().encode(
+        bar = alt.Chart(top_kols).mark_bar().encode( 
             x=alt.X('Name', title='KOL 이름', sort='-y'), 
             y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
@@ -338,7 +380,7 @@ if master_df is not None and activities_df is not None:
             align='center',
             baseline='bottom',
             dy=-5,
-            color='black' 
+            color='black' # 💡 검은색 텍스트
         ).encode(
             text=alt.Text('Completion_Rate', format='.1f')
         )
