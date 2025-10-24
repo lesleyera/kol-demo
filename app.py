@@ -7,10 +7,10 @@ import altair as alt
 from datetime import datetime, timedelta 
 
 # -----------------------------------------------------------------
-# 1. Google Sheets 인증 및 데이터 로드 (최종 항목 반영)
+# 1. Google Sheets 인증 및 데이터 로드 (이전과 동일)
 # -----------------------------------------------------------------
 
-@st.cache_data(ttl=60) # 60초마다 데이터를 새로고침 (캐시)
+@st.cache_data(ttl=60) 
 def load_data_from_gsheet():
     
     SPREADSHEET_NAME = "KOL 관리 시트" 
@@ -32,37 +32,23 @@ def load_data_from_gsheet():
             st.error("인증 실패: 'google_credentials.json' 파일을 찾거나 Streamlit 'Secrets' 설정을 확인하세요.")
             return None, None
 
-        # --- 데이터 로드 ---
+        # --- 데이터 로드 및 계산 (이전과 동일) ---
         sh = gc.open(SPREADSHEET_NAME)
-
-        master_ws = sh.worksheet(WORKSHEET1_NAME)
-        master_df = get_as_dataframe(master_ws).dropna(how='all') 
+        master_df = get_as_dataframe(sh.worksheet(WORKSHEET1_NAME)).dropna(how='all') 
+        activities_df = get_as_dataframe(sh.worksheet(WORKSHEET2_NAME)).dropna(how='all')
         
-        activities_ws = sh.worksheet(WORKSHEET2_NAME)
-        activities_df = get_as_dataframe(activities_ws).dropna(how='all')
-        
-        # --- 날짜/숫자 데이터 타입 변환 및 계산 ---
+        # --- 데이터 타입 변환 및 계산 ---
         master_df['Contract_End'] = pd.to_datetime(master_df['Contract_End'], errors='coerce')
         activities_df['Due_Date'] = pd.to_datetime(activities_df['Due_Date'], errors='coerce')
-        
-        # 💡 예산/지출 항목을 숫자로 변환
         master_df['Budget (USD)'] = pd.to_numeric(master_df['Budget (USD)'], errors='coerce').fillna(0)
         master_df['Spent (USD)'] = pd.to_numeric(master_df['Spent (USD)'], errors='coerce').fillna(0)
-
-        # --- KPI 계산을 위한 데이터 가공 ---
+        
         activities_df['Done'] = activities_df['Status'].apply(lambda x: 1 if x == 'Done' else 0)
-        
-        activity_summary = activities_df.groupby('Kol_ID').agg(
-            Total=('Activity_ID', 'count'),
-            Done=('Done', 'sum')
-        ).reset_index()
-        
+        activity_summary = activities_df.groupby('Kol_ID').agg(Total=('Activity_ID', 'count'), Done=('Done', 'sum')).reset_index()
         activity_summary['Completion_Rate'] = (activity_summary['Done'] / activity_summary['Total']) * 100
         master_df = pd.merge(master_df, activity_summary[['Kol_ID', 'Completion_Rate']], on='Kol_ID', how='left').fillna({'Completion_Rate': 0})
-
-        # 💡 예산 활용률 계산
         master_df['Utilization_Rate'] = (master_df['Spent (USD)'] / master_df['Budget (USD)']) * 100
-        master_df['Utilization_Rate'] = master_df['Utilization_Rate'].fillna(0).apply(lambda x: min(x, 100)) # 100% 초과 방지
+        master_df['Utilization_Rate'] = master_df['Utilization_Rate'].fillna(0).apply(lambda x: min(x, 100))
 
         st.success("🎉 데이터 로드 및 초기 계산 완료!")
         return master_df, activities_df
@@ -72,14 +58,69 @@ def load_data_from_gsheet():
         return None, None
 
 # -----------------------------------------------------------------
-# 2. Streamlit 대시보드 UI 그리기
+# 2. 조건부 서식 함수 정의 (이전과 동일)
 # -----------------------------------------------------------------
 
+def highlight_master_row(row, today, alert_days=30):
+    """KOL_Master 테이블에서 계약 만료 임박 행을 강조합니다."""
+    contract_end = row['Contract_End']
+    is_imminent = (contract_end.date() >= today.date()) and \
+                  (contract_end.date() <= (today + timedelta(days=alert_days)).date())
+    
+    if is_imminent:
+        return ['background-color: #ffd70040'] * len(row) 
+    return [''] * len(row)
+
+def highlight_activity_row(row, today):
+    """Activities 테이블에서 지연된 활동 행을 강조합니다."""
+    due_date = row['Due_Date']
+    status = row['Status']
+    
+    is_overdue = (due_date.date() < today.date()) and (status != 'Done')
+    
+    if is_overdue:
+        return ['background-color: #ff4c4c40'] * len(row)
+    return [''] * len(row)
+
+# -----------------------------------------------------------------
+# 3. Streamlit UI 그리기 (배경색 설정 추가)
+# -----------------------------------------------------------------
+
+# [1] 페이지 레이아웃 설정
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
+
+# [2] 💡 배경색 및 테마 설정 (Custom CSS 또는 st.set_theme 사용)
+# st.set_page_config의 theme 인수가 Streamlit 1.x 버전에서는 제한적이므로,
+# 임시로 CSS 주입을 통해 색상 팔레트를 Dark로 고정합니다.
+st.markdown(
+    """
+    <style>
+    /* 배경색을 어둡게 */
+    .stApp {
+        background-color: #121212; /* 매우 어두운 회색 */
+    }
+    /* 헤더 및 텍스트 색상을 밝게 */
+    h1, h2, h3, h4, h5, h6, .st-bh, .st-bs, .st-bw {
+        color: #ffffff; 
+    }
+    /* 사이드바 배경색을 더 어둡게 */
+    [data-testid="stSidebar"] {
+        background-color: #0d0d0d; 
+    }
+    /* 차트 컨테이너 배경도 어둡게 */
+    .stDataFrame, .stPlotlyChart {
+        background-color: #1e1e1e;
+        border-radius: 10px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 st.title("📊 KOL 활동 관리 대시보드 (MVP)")
 
-master_df, activities_df = load_data_from_gsheet()
-
+# ... (사이드바 및 KOL 상세 조회 필터는 동일) ...
 st.sidebar.subheader("KOL 상세 조회 필터")
 if master_df is not None:
     kol_names = master_df['Name'].tolist()
@@ -92,8 +133,103 @@ if master_df is not None and activities_df is not None:
 
     if selected_name == "전체":
         
-        # --- KPI 요약 섹션 ---
-        st.header("KPI 요약")
+        # -----------------------------------
+        # 1. 주요 차트 현황 (맨 위)
+        # -----------------------------------
+        st.header("1. 주요 차트 현황 (총 6개)")
+
+        # Row 1: 파이 차트 2개
+        col_r1_c1, col_r1_c2 = st.columns(2)
+        with col_r1_c1:
+            st.subheader("활동 상태별 분포 (파이 차트)")
+            status_counts = activities_df['Status'].value_counts().reset_index()
+            status_counts.columns = ['Status', 'Count']
+            chart1 = alt.Chart(status_counts).mark_arc(outerRadius=120, innerRadius=80).encode(
+                theta=alt.Theta("Count", stack=True),
+                color=alt.Color("Status", title='상태'),
+                tooltip=['Status', 'Count']
+            ).interactive()
+            st.altair_chart(chart1, use_container_width=True)
+        
+        with col_r1_c2:
+            st.subheader("KOL 등급별 분포 (파이 차트)")
+            type_counts = master_df['KOL_Type'].value_counts().reset_index()
+            type_counts.columns = ['Type', 'Count']
+            chart2 = alt.Chart(type_counts).mark_arc(outerRadius=120, innerRadius=80).encode(
+                theta=alt.Theta("Count", stack=True),
+                color=alt.Color("Type", title='등급'),
+                tooltip=['Type', 'Count']
+            ).interactive()
+            st.altair_chart(chart2, use_container_width=True)
+                
+        st.divider()
+
+        # Row 2: 꺾은선 그래프 2개
+        col_r2_c1, col_r2_c2 = st.columns(2)
+        with col_r2_c1:
+            st.subheader("월별 총 활동 스케줄 (마감일)")
+            activities_df['YearMonth'] = activities_df['Due_Date'].dt.to_period('M').astype(str)
+            timeline_data = activities_df.groupby('YearMonth').size().reset_index(name='Count')
+            chart3 = alt.Chart(timeline_data).mark_line(point=True).encode(
+                x=alt.X('YearMonth', title='월별 마감일', sort=timeline_data['YearMonth'].tolist()),
+                y=alt.Y('Count', title='활동 건수'),
+                tooltip=['YearMonth', 'Count']
+            ).interactive()
+            st.altair_chart(chart3, use_container_width=True)
+
+        with col_r2_c2:
+            st.subheader("월별 완료 활동 트렌드 (꺾은선)")
+            completed_df = activities_df[activities_df['Status'] == 'Done'].copy()
+            completed_df['YearMonth'] = completed_df['Due_Date'].dt.to_period('M').astype(str)
+            completed_timeline = completed_df.groupby('YearMonth').size().reset_index(name='Completed')
+            chart4 = alt.Chart(completed_timeline).mark_line(point=True, color='green').encode(
+                x=alt.X('YearMonth', title='월별 완료 시점', sort=completed_timeline['YearMonth'].tolist()),
+                y=alt.Y('Completed', title='완료된 활동 건수'),
+                tooltip=['YearMonth', 'Completed']
+            ).interactive()
+            st.altair_chart(chart4, use_container_width=True)
+            
+        st.divider()
+        
+        # Row 3: 혼합형태 + 가로 막대
+        col_r3_c1, col_r3_c2 = st.columns(2) 
+        with col_r3_c1:
+            st.subheader("국가별 예산 vs. 완료율 (혼합 차트)")
+            country_summary = master_df.groupby('Country').agg(
+                Total_Budget=('Budget (USD)', 'sum'),
+                Avg_Completion=('Completion_Rate', 'mean')
+            ).reset_index()
+
+            bar = alt.Chart(country_summary).mark_bar().encode(
+                x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f')),
+                y=alt.Y('Country', title='국가', sort='-x'),
+                tooltip=['Country', alt.Tooltip('Total_Budget', format='$,.0f')]
+            )
+            line = alt.Chart(country_summary).mark_tick(color='red', thickness=2, size=20).encode(
+                x=alt.X('Avg_Completion', title='평균 완료율 (%)'),
+                y=alt.Y('Country'),
+                tooltip=['Country', alt.Tooltip('Avg_Completion', format='.1f')]
+            )
+            chart5 = (bar + line).resolve_scale(x='independent').interactive()
+            st.altair_chart(chart5, use_container_width=True)
+        
+        with col_r3_c2:
+            st.subheader("활동 유형별 분포 (가로 막대)")
+            type_counts = activities_df['Activity_Type'].value_counts().reset_index()
+            type_counts.columns = ['Type', 'Count']
+            chart6 = alt.Chart(type_counts).mark_bar().encode(
+                x=alt.X('Count', title='건수'),
+                y=alt.Y('Type', title='유형', sort='-x'),
+                tooltip=['Type', 'Count']
+            ).interactive()
+            st.altair_chart(chart6, use_container_width=True)
+
+        st.divider()
+
+        # -----------------------------------
+        # 2. KPI 요약 (차트 다음)
+        # -----------------------------------
+        st.header("2. KPI 요약")
         total_budget = master_df['Budget (USD)'].sum()
         total_spent = master_df['Spent (USD)'].sum()
         avg_completion = master_df['Completion_Rate'].mean()
@@ -104,11 +240,13 @@ if master_df is not None and activities_df is not None:
         with col_kpi2: st.metric(label="총 예산 규모", value=f"${total_budget:,.0f}")
         with col_kpi3: st.metric(label="평균 완료율", value=f"{avg_completion:.1f}%")
         with col_kpi4: st.metric(label="예산 활용률", value=f"{avg_utilization:.1f}%")
-
+        
         st.divider()
 
-        # --- 알림 기능 섹션 (이전과 동일) ---
-        st.header("🔔 경고 및 알림 (Alerts)")
+        # -----------------------------------
+        # 3. 경고 및 알림 (KPI 다음)
+        # -----------------------------------
+        st.header("3. 경고 및 알림 (Alerts)")
         
         today = datetime.now()
         alert_found = False
@@ -146,117 +284,26 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # -----------------------------------
-        # 💡💡 [6개 그래프 중심 레이아웃] 💡💡
+        # 4. 원본 데이터 (조건부 서식 적용)
         # -----------------------------------
-        st.header("주요 차트 현황 (총 6개)")
-
-        # Row 1: 파이 차트 2개
-        col_r1_c1, col_r1_c2 = st.columns(2)
+        st.header("4. 원본 데이터 (Raw Data - 시각화 적용)")
         
-        with col_r1_c1:
-            st.subheader("1. 활동 상태별 분포 (파이 차트)")
-            status_counts = activities_df['Status'].value_counts().reset_index()
-            status_counts.columns = ['Status', 'Count']
-            chart1 = alt.Chart(status_counts).mark_arc(outerRadius=120, innerRadius=80).encode(
-                theta=alt.Theta("Count", stack=True),
-                color=alt.Color("Status", title='상태'),
-                tooltip=['Status', 'Count']
-            ).interactive()
-            st.altair_chart(chart1, use_container_width=True)
-        
-        with col_r1_c2:
-            st.subheader("2. KOL 등급별 분포 (파이 차트)")
-            type_counts = master_df['KOL_Type'].value_counts().reset_index()
-            type_counts.columns = ['Type', 'Count']
-            chart2 = alt.Chart(type_counts).mark_arc(outerRadius=120, innerRadius=80).encode(
-                theta=alt.Theta("Count", stack=True),
-                color=alt.Color("Type", title='등급'),
-                tooltip=['Type', 'Count']
-            ).interactive()
-            st.altair_chart(chart2, use_container_width=True)
-                
-        st.divider()
-
-        # Row 2: 꺾은선 그래프 2개
-        col_r2_c1, col_r2_c2 = st.columns(2)
-        
-        with col_r2_c1:
-            st.subheader("3. 월별 총 활동 스케줄 (마감일)")
-            activities_df['YearMonth'] = activities_df['Due_Date'].dt.to_period('M').astype(str)
-            timeline_data = activities_df.groupby('YearMonth').size().reset_index(name='Count')
-            
-            chart3 = alt.Chart(timeline_data).mark_line(point=True).encode(
-                x=alt.X('YearMonth', title='월별 마감일', sort=timeline_data['YearMonth'].tolist()),
-                y=alt.Y('Count', title='활동 건수'),
-                tooltip=['YearMonth', 'Count']
-            ).interactive()
-            st.altair_chart(chart3, use_container_width=True)
-
-        with col_r2_c2:
-            st.subheader("4. 월별 완료 활동 트렌드 (꺾은선)")
-            completed_df = activities_df[activities_df['Status'] == 'Done'].copy()
-            completed_df['YearMonth'] = completed_df['Due_Date'].dt.to_period('M').astype(str)
-            completed_timeline = completed_df.groupby('YearMonth').size().reset_index(name='Completed')
-            
-            chart4 = alt.Chart(completed_timeline).mark_line(point=True, color='green').encode(
-                x=alt.X('YearMonth', title='월별 완료 시점', sort=completed_timeline['YearMonth'].tolist()),
-                y=alt.Y('Completed', title='완료된 활동 건수'),
-                tooltip=['YearMonth', 'Completed']
-            ).interactive()
-            st.altair_chart(chart4, use_container_width=True)
-            
-        st.divider()
-        
-        # Row 3: 혼합형태 + 가로 막대
-        col_r3_c1, col_r3_c2 = st.columns(2) 
-        
-        with col_r3_c1:
-            st.subheader("5. 국가별 예산 vs. 완료율 (혼합 차트)") # 💡 혼합형 차트
-            country_summary = master_df.groupby('Country').agg(
-                Total_Budget=('Budget (USD)', 'sum'),
-                Avg_Completion=('Completion_Rate', 'mean')
-            ).reset_index()
-
-            # 막대 차트 (예산)
-            bar = alt.Chart(country_summary).mark_bar().encode(
-                x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f')),
-                y=alt.Y('Country', title='국가', sort='-x'),
-                tooltip=['Country', alt.Tooltip('Total_Budget', format='$,.0f')]
-            )
-
-            # 꺾은선 차트 (완료율)
-            line = alt.Chart(country_summary).mark_tick(color='red', thickness=2, size=20).encode(
-                x=alt.X('Avg_Completion', title='평균 완료율 (%)'),
-                y=alt.Y('Country'),
-                tooltip=['Country', alt.Tooltip('Avg_Completion', format='.1f')]
-            )
-            
-            chart5 = (bar + line).resolve_scale(x='independent').interactive()
-            st.altair_chart(chart5, use_container_width=True)
-        
-        with col_r3_c2:
-            st.subheader("6. 활동 유형별 분포 (가로 막대)")
-            type_counts = activities_df['Activity_Type'].value_counts().reset_index()
-            type_counts.columns = ['Type', 'Count']
-            
-            chart6 = alt.Chart(type_counts).mark_bar().encode(
-                x=alt.X('Count', title='건수'),
-                y=alt.Y('Type', title='유형', sort='-x'),
-                tooltip=['Type', 'Count']
-            ).interactive()
-            st.altair_chart(chart6, use_container_width=True)
-
-        st.divider()
-
-        st.header("원본 데이터 (Raw Data)")
+        # --- master_df 조건부 서식 적용 ---
         st.subheader("KOL 마스터")
-        st.dataframe(master_df.astype(str), use_container_width=True) 
+        st.dataframe(
+            master_df.style.apply(highlight_master_row, today=datetime.now(), axis=1).format({'Contract_End': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}),
+            use_container_width=True
+        ) 
+        
+        # --- activities_df 조건부 서식 적용 ---
         st.subheader("모든 활동 내역")
-        st.dataframe(activities_df.astype(str), use_container_width=True) 
+        st.dataframe(
+            activities_df.style.apply(highlight_activity_row, today=datetime.now(), axis=1).format({'Due_Date': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}),
+            use_container_width=True
+        )
 
-    # --- (KOL 상세 뷰 - 수정 없음) ---
+    # ... (KOL 상세 뷰는 동일) ...
     else:
-        # (KOL 상세 뷰 코드는 이전과 동일)
         try:
             selected_kol_id = master_df[master_df['Name'] == selected_name]['Kol_ID'].iloc[0]
             
@@ -302,13 +349,9 @@ if master_df is not None and activities_df is not None:
                 st.divider()
                 
                 st.subheader("활동 상세 목록 (Raw Data)")
-                kol_activities_display = kol_activities.copy()
-                kol_activities_display['자료 열람'] = kol_activities_display['File_Link'].apply(
-                    lambda url: f"[링크 열기]({url})" if url and url.startswith('http') else "링크 없음"
-                )
-                
+                # --- 상세 뷰 로데이터 조건부 서식 적용 ---
                 st.dataframe(
-                    kol_activities_display.astype(str), 
+                    kol_activities.style.apply(highlight_activity_row, today=datetime.now(), axis=1).format({'Due_Date': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}),
                     column_config={
                         "File_Link": None, 
                         "자료 열람": st.column_config.LinkColumn(
