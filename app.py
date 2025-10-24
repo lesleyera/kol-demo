@@ -1,14 +1,3 @@
-네, 요청하신 내용에 맞춰 대시보드의 **순서, 그래프 종류, 레이아웃, 레이블**을 모두 수정하여 `app.py` 코드를 업데이트했습니다.
-
-특히, 차트 레이아웃은 **한 줄에 3개씩** 배치되도록 조정했으며, **월별 활동 스케줄**은 막대와 꺾은선을 결합한 **혼합 차트**로 변경했습니다.
-
-`app.py` 파일 전체를 아래 코드로 **덮어쓰기** 하시고, **GitHub에 변경 사항을 푸시**한 뒤 Streamlit Cloud에서 \*\*`Deploy`\*\*를 다시 진행해 주세요.
-
------
-
-## 💻 최종 수정된 `app.py` 코드
-
-```python
 import streamlit as st
 import gspread
 import pandas as pd
@@ -410,4 +399,3 @@ if master_df is not None and activities_df is not None:
             st.error(f"'{selected_name}' 님의 'Kol_ID'를 'KOL_Master' 시트에서 찾을 수 없습니다.")
         except Exception as e:
             st.error(f"데이터 표시 중 에러: {e}")
-```
