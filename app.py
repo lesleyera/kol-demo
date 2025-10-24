@@ -7,14 +7,28 @@ import altair as alt
 from datetime import datetime, timedelta 
 
 # -----------------------------------------------------------------
-# 0. 전역 변수 선언 (오류 방지용)
+# 0. 전역 변수 선언 및 유틸리티 함수
 # -----------------------------------------------------------------
 master_df = None
 activities_df = None
 
+def get_max_value(df, column, is_percentage=False):
+    """주어진 컬럼의 최대값보다 10% 더 큰 값을 계산합니다."""
+    if df.empty or column not in df.columns:
+        return 1.0 if is_percentage else 10 # 기본값
+    
+    max_val = df[column].max()
+    
+    if is_percentage:
+        # 백분율은 최대 100%로 고정
+        return 100 
+    else:
+        # 건수는 최대값보다 10% 크게 설정
+        return max_val * 1.1 if max_val > 0 else 10
+
 
 # -----------------------------------------------------------------
-# 1. Google Sheets 인증 및 데이터 로드 
+# 1. Google Sheets 인증 및 데이터 로드 (이전과 동일)
 # -----------------------------------------------------------------
 
 @st.cache_data(ttl=60) 
@@ -44,7 +58,7 @@ def load_data_from_gsheet():
         master_df = get_as_dataframe(sh.worksheet(WORKSHEET1_NAME)).dropna(how='all') 
         activities_df = get_as_dataframe(sh.worksheet(WORKSHEET2_NAME)).dropna(how='all')
         
-        # --- 데이터 타입 변환 및 계산 ---
+        # --- 데이터 타입 변환 및 계산 (이전과 동일) ---
         master_df['Contract_End'] = pd.to_datetime(master_df['Contract_End'], errors='coerce')
         activities_df['Due_Date'] = pd.to_datetime(activities_df['Due_Date'], errors='coerce')
         master_df['Budget (USD)'] = pd.to_numeric(master_df['Budget (USD)'], errors='coerce').fillna(0)
@@ -65,7 +79,7 @@ def load_data_from_gsheet():
         return None, None
 
 # -----------------------------------------------------------------
-# 2. 조건부 서식 함수 정의 
+# 2. 조건부 서식 함수 정의 (이전과 동일)
 # -----------------------------------------------------------------
 
 def highlight_master_row(row, today, alert_days=30):
@@ -94,13 +108,11 @@ def highlight_activity_row(row, today):
     return [''] * len(row)
 
 # -----------------------------------------------------------------
-# 3. Streamlit UI 그리기 
+# 3. Streamlit UI 그리기 (수정 반영)
 # -----------------------------------------------------------------
 
-# [1] 페이지 레이아웃 설정
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
 
-# [2] 배경색 및 테마 설정
 st.markdown(
     """
     <style>
@@ -116,7 +128,6 @@ st.markdown(
 
 st.title("📊 KOL 활동 관리 대시보드 (MVP)")
 
-# --- (사이드바 및 데이터 로드) ---
 master_df, activities_df = load_data_from_gsheet()
 
 st.sidebar.subheader("KOL 상세 조회 필터")
@@ -126,7 +137,6 @@ if master_df is not None:
 else:
     selected_name = st.sidebar.selectbox("KOL 이름을 선택하세요:", ["전체"])
 
-# --- 데이터 로드 성공 시 메인 화면 구성 ---
 if master_df is not None and activities_df is not None:
 
     if selected_name == "전체":
@@ -150,10 +160,14 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 2. 주요 차트 현황 (3x2 레이아웃 및 레이블 추가)
+        # 2. 주요 차트 현황 (3x2 레이아웃 및 축 설정)
         # ===================================
         st.header("2. 주요 차트 현황 (3x2 레이아웃)")
-
+        
+        # --- 💡 축 최대값 계산 ---
+        max_count = get_max_value(activities_df.groupby('YearMonth').size().reset_index(name='Count'), 'Count')
+        max_budget = get_max_value(master_df.groupby('Country')['Budget (USD)'].sum().reset_index(name='Total_Budget'), 'Total_Budget')
+        
         # -----------------------------------
         # Row 1: 차트 3개
         # -----------------------------------
@@ -189,7 +203,7 @@ if master_df is not None and activities_df is not None:
             # Bar Chart (Volume)
             bar_chart = alt.Chart(timeline_data).mark_bar(color='#4c78a8').encode(
                 x=alt.X('YearMonth', title='월별 마감일', sort=timeline_data['YearMonth'].tolist()),
-                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d')), 
+                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_count])), # 💡 축 최대값 설정
                 tooltip=['YearMonth', alt.Tooltip('Count', title='활동 건수', format='d')]
             )
 
@@ -197,7 +211,7 @@ if master_df is not None and activities_df is not None:
             text_bar = bar_chart.mark_text(
                 align='center',
                 baseline='bottom',
-                dy=-5, # Offset to place text above the bar
+                dy=-5, 
                 color='white'
             ).encode(
                 text=alt.Text('Count', format='d')
@@ -226,17 +240,18 @@ if master_df is not None and activities_df is not None:
             completed_df['YearMonth'] = completed_df['Due_Date'].dt.to_period('M').astype(str)
             completed_timeline = completed_df.groupby('YearMonth').size().reset_index(name='Completed')
             
+            max_completed = get_max_value(completed_timeline, 'Completed')
+
             line = alt.Chart(completed_timeline).mark_line(point=True, color='green').encode(
                 x=alt.X('YearMonth', title='월별 완료 시점', sort=completed_timeline['YearMonth'].tolist()),
-                y=alt.Y('Completed', title='완료된 활동 건수 (건)', axis=alt.Axis(format='d')), 
+                y=alt.Y('Completed', title='완료된 활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_completed])), # 💡 축 최대값 설정
                 tooltip=['YearMonth', alt.Tooltip('Completed', title='완료된 활동 건수', format='d')]
             )
             
-            # Text Label for Line Chart
             text_line = line.mark_text(
                 align='left',
                 baseline='middle',
-                dx=5, # Offset to place text near the point
+                dx=5, 
                 color='green'
             ).encode(
                 text=alt.Text('Completed', format='d')
@@ -253,30 +268,31 @@ if master_df is not None and activities_df is not None:
             ).reset_index()
 
             bar = alt.Chart(country_summary).mark_bar().encode(
-                x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f')), 
+                x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f'), scale=alt.Scale(domain=[0, max_budget])), # 💡 축 최대값 설정
                 y=alt.Y('Country', title='국가', sort='-x'),
                 tooltip=['Country', alt.Tooltip('Total_Budget', title='총 예산', format='$,.0f')]
             )
             line = alt.Chart(country_summary).mark_tick(color='red', thickness=2, size=20).encode(
-                x=alt.X('Avg_Completion', title='평균 완료율 (%)', axis=alt.Axis(format='.1f')), 
+                x=alt.X('Avg_Completion', title='평균 완료율 (%)', axis=alt.Axis(format='.1f', domain=[0, 100])), # 💡 100% 고정
                 y=alt.Y('Country'),
                 tooltip=['Country', alt.Tooltip('Avg_Completion', title='평균 완료율', format='.1f')]
             )
-            chart5 = (bar + line).resolve_scale(x='independent').interactive()
+            chart5 = (bar + line).resolve_scale(y='independent').interactive() # Y축만 독립적으로 해결하도록 변경
             st.altair_chart(chart5, use_container_width=True)
         
         with col_r2_c3:
             st.subheader("활동 유형별 분포 (세로 막대)")
             type_counts = activities_df['Activity_Type'].value_counts().reset_index()
             type_counts.columns = ['Type', 'Count']
-            
+
+            max_type_count = get_max_value(type_counts, 'Count')
+
             bar = alt.Chart(type_counts).mark_bar().encode(
-                x=alt.X('Type', title='활동 유형'), # 세로 막대로 변경
-                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d')), 
+                x=alt.X('Type', title='활동 유형'), 
+                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d'), scale=alt.Scale(domain=[0, max_type_count])), # 💡 축 최대값 설정
                 tooltip=['Type', alt.Tooltip('Count', title='활동 건수', format='d')]
             )
             
-            # Text Label for Bar Chart
             text_bar = bar.mark_text(
                 align='center',
                 baseline='bottom',
@@ -292,20 +308,20 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # -----------------------------------
-        # Row 3: 새로운 차트 - 우수 KOL 순위 (세로 막대)
+        # Row 3: 새로운 차트 - 우수 KOL 순위 (폭 좁게)
         # -----------------------------------
         st.subheader("🏆 우수 KOL별 완료율 순위 (Top 10)")
         
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
+        max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar().encode(
-            x=alt.X('Name', title='KOL 이름', sort=top_kols['Name'].tolist()), # 세로 막대로 변경
-            y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f')), 
+        bar = alt.Chart(top_kols).mark_bar(size=10).encode( # 💡 size=10으로 폭 좁게 설정
+            x=alt.X('Name', title='KOL 이름'), 
+            y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), # 💡 축 최대값 설정
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
             tooltip=['Name', alt.Tooltip('Completion_Rate', title='완료율', format='.1f')]
         )
         
-        # Text Label for Bar Chart
         text_bar = bar.mark_text(
             align='center',
             baseline='bottom',
@@ -322,9 +338,10 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 3. 경고 및 알림 (Alerts)
+        # 3. 경고 및 알림 (KPI 다음)
         # ===================================
         st.header("3. 경고 및 알림 (Alerts)")
+        # ... (이하 동일) ...
         
         today = datetime.now()
         alert_found = False
@@ -367,14 +384,12 @@ if master_df is not None and activities_df is not None:
         st.header("4. 원본 데이터 (Raw Data - 시각화 적용)")
         today = datetime.now() 
 
-        # --- master_df 조건부 서식 적용 ---
         st.subheader("KOL 마스터")
         st.dataframe(
             master_df.style.apply(highlight_master_row, today=today, axis=1).format({'Contract_End': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}),
             use_container_width=True
         ) 
         
-        # --- activities_df 조건부 서식 적용 ---
         st.subheader("모든 활동 내역")
         st.dataframe(
             activities_df.style.apply(highlight_activity_row, today=today, axis=1).format({'Due_Date': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}),
@@ -397,7 +412,6 @@ if master_df is not None and activities_df is not None:
             if not kol_activities.empty:
                 col_detail1, col_detail2 = st.columns(2)
                 
-                # 상세 KPI 계산
                 total = kol_activities.shape[0]
                 done = kol_activities[kol_activities['Status'] == 'Done'].shape[0]
                 completion_rate = (done / total) * 100 if total > 0 else 0
