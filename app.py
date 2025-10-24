@@ -7,7 +7,7 @@ import altair as alt
 from datetime import datetime, timedelta 
 
 # -----------------------------------------------------------------
-# 0. 전역 변수 선언 및 유틸리티 함수
+# 0. 전역 변수 선언 및 유틸리티 함수 (이전과 동일)
 # -----------------------------------------------------------------
 master_df = None
 activities_df = None
@@ -15,13 +15,15 @@ activities_df = None
 def get_max_value(df, column, is_percentage=False):
     """주어진 컬럼의 최대값보다 10% 더 큰 값을 계산합니다."""
     if df.empty or column not in df.columns:
-        return 100 if is_percentage else 10
+        return 100 if is_percentage else 10 # 기본값
     
     max_val = df[column].max()
     
     if is_percentage:
+        # 백분율은 최대 100%로 고정
         return 100 
     else:
+        # 건수/금액은 최대값보다 10% 크게 설정
         return max_val * 1.1 if max_val > 0 else 10
 
 # -----------------------------------------------------------------
@@ -68,7 +70,6 @@ def load_data_from_gsheet():
         master_df['Utilization_Rate'] = (master_df['Spent (USD)'] / master_df['Budget (USD)']) * 100
         master_df['Utilization_Rate'] = master_df['Utilization_Rate'].fillna(0).apply(lambda x: min(x, 100))
         
-        # 💡 YearMonth 컬럼 생성 (KeyError 방지)
         activities_df['YearMonth'] = activities_df['Due_Date'].dt.to_period('M').astype(str)
 
         st.success("🎉 데이터 로드 및 초기 계산 완료!")
@@ -108,7 +109,7 @@ def highlight_activity_row(row, today):
     return [''] * len(row)
 
 # -----------------------------------------------------------------
-# 3. Streamlit UI 그리기 (수정 반영)
+# 3. Streamlit UI 그리기 
 # -----------------------------------------------------------------
 
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
@@ -160,7 +161,7 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 2. 주요 차트 현황 (3x2 레이아웃 및 축 설정)
+        # 2. 주요 차트 현황 (3x2 레이아웃 및 레이블 수정 완료)
         # ===================================
         st.header("2. 주요 차트 현황")
         
@@ -177,22 +178,38 @@ if master_df is not None and activities_df is not None:
             st.subheader("활동 상태별 분포")
             status_counts = activities_df['Status'].value_counts().reset_index()
             status_counts.columns = ['Status', 'Count']
-            chart1 = alt.Chart(status_counts).mark_arc(outerRadius=100, innerRadius=60).encode(
-                theta=alt.Theta("Count", stack=True),
-                color=alt.Color("Status", title='상태'),
-                tooltip=['Status', alt.Tooltip('Count', title='활동 건수', format='d')]
-            ).interactive()
+            
+            base = alt.Chart(status_counts).encode(theta=alt.Theta("Count", stack=True), color=alt.Color("Status", title='상태'))
+            
+            # Pie Chart
+            pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Status', alt.Tooltip('Count', title='활동 건수', format='d')])
+            
+            # 💡 Text Label for Pie Chart
+            text = base.mark_text(radius=120, fill='white').encode(
+                text=alt.Text('Count', format='d'),
+                order=alt.Order('Count', sort='descending')
+            )
+
+            chart1 = (pie + text).interactive()
             st.altair_chart(chart1, use_container_width=True)
         
         with col_r1_c2:
             st.subheader("KOL 등급별 분포")
             type_counts = master_df['KOL_Type'].value_counts().reset_index()
             type_counts.columns = ['Type', 'Count']
-            chart2 = alt.Chart(type_counts).mark_arc(outerRadius=100, innerRadius=60).encode(
-                theta=alt.Theta("Count", stack=True),
-                color=alt.Color("Type", title='등급'),
-                tooltip=['Type', alt.Tooltip('Count', title='KOL 건수', format='d')]
-            ).interactive()
+            
+            base = alt.Chart(type_counts).encode(theta=alt.Theta("Count", stack=True), color=alt.Color("Type", title='등급'))
+            
+            # Pie Chart
+            pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Type', alt.Tooltip('Count', title='KOL 건수', format='d')])
+            
+            # 💡 Text Label for Pie Chart
+            text = base.mark_text(radius=120, fill='white').encode(
+                text=alt.Text('Count', format='d'),
+                order=alt.Order('Count', sort='descending')
+            )
+
+            chart2 = (pie + text).interactive()
             st.altair_chart(chart2, use_container_width=True)
                 
         with col_r1_c3:
@@ -260,19 +277,30 @@ if master_df is not None and activities_df is not None:
             st.altair_chart(chart4, use_container_width=True)
 
         with col_r2_c2:
-            st.subheader("국가별 총 예산 (USD)") # 💡 차트 5-1 분리
+            st.subheader("국가별 총 예산 (USD)") 
             country_summary = master_df.groupby('Country').agg(
                 Total_Budget=('Budget (USD)', 'sum'),
             ).reset_index()
 
             max_budget_single = get_max_value(country_summary, 'Total_Budget')
 
-            chart5_1 = alt.Chart(country_summary).mark_bar().encode(
+            bar = alt.Chart(country_summary).mark_bar().encode(
                 x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f'), scale=alt.Scale(domain=[0, max_budget_single])), 
                 y=alt.Y('Country', title='국가', sort='-x'),
                 tooltip=['Country', alt.Tooltip('Total_Budget', title='총 예산', format='$,.0f')]
             )
-            st.altair_chart(chart5_1, use_container_width=True)
+
+            # 💡 Text Label for Bar Chart
+            text_bar = bar.mark_text(
+                align='left',
+                baseline='middle',
+                dx=5,
+                color='white'
+            ).encode(
+                text=alt.Text('Total_Budget', format='$,.0f')
+            )
+
+            st.altair_chart(bar + text_bar, use_container_width=True) # 💡 텍스트 레이블 추가
         
         with col_r2_c3:
             st.subheader("활동 유형별 분포")
@@ -309,7 +337,7 @@ if master_df is not None and activities_df is not None:
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar(size=50).encode(
+        bar = alt.Chart(top_kols).mark_bar(size=20).encode(
             x=alt.X('Name', title='KOL 이름', sort='-y'), 
             y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
@@ -395,7 +423,7 @@ if master_df is not None and activities_df is not None:
             selected_kol_id = master_df[master_df['Name'] == selected_name]['Kol_ID'].iloc[0]
             
             st.header(f"👨‍⚕️ {selected_name} 님 상세 정보")
-            kol_details = master_df[master_df['Kol_ID'] == selected_kol_id]
+            kol_details = master_df[kol_details['Kol_ID'] == selected_kol_id]
             st.dataframe(kol_details.astype(str), use_container_width=True) 
             
             st.divider()
