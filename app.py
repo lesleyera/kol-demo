@@ -7,7 +7,7 @@ import altair as alt
 from datetime import datetime, timedelta 
 
 # -----------------------------------------------------------------
-# 0. 전역 변수 선언 및 유틸리티 함수
+# 0. 전역 변수 선언 및 유틸리티 함수 (이전과 동일)
 # -----------------------------------------------------------------
 master_df = None
 activities_df = None
@@ -110,7 +110,7 @@ def highlight_activity_row(row, today):
     return [''] * len(row)
 
 # -----------------------------------------------------------------
-# 3. Streamlit UI 그리기 
+# 3. Streamlit UI 그리기 (수정 반영)
 # -----------------------------------------------------------------
 
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
@@ -330,7 +330,7 @@ if master_df is not None and activities_df is not None:
 
         st.divider()
 
-# -----------------------------------
+        # -----------------------------------
         # Row 3: 새로운 차트 - 우수 KOL 순위 (세로 막대, 폭 자동)
         # -----------------------------------
         st.subheader("🏆 우수 KOL별 완료율 순위 (Top 10)")
@@ -338,8 +338,8 @@ if master_df is not None and activities_df is not None:
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar().encode( # 💡 size 인자 제거되어 있음
-            x=alt.X('Name', title='KOL 이름', sort='-y', axis=alt.Axis(labelAngle=-45)), # 💡 X축 레이블 각도 변경
+        bar = alt.Chart(top_kols).mark_bar().encode( # 💡 size 인자 제거 완료 (가장 넓은 폭 자동 설정)
+            x=alt.X('Name', title='KOL 이름', sort='-y'), 
             y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
             tooltip=['Name', alt.Tooltip('Completion_Rate', title='완료율', format='.1f')]
