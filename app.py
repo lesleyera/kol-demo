@@ -132,7 +132,7 @@ if master_df is not None and activities_df is not None:
     if selected_name == "전체":
         
         # ===================================
-        # 1. KPI 요약 (순서 변경 요청 반영)
+        # 1. KPI 요약
         # ===================================
         st.header("1. KPI 요약")
         
@@ -150,12 +150,12 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 2. 주요 차트 현황 (순서 변경 및 3열 배치 요청 반영)
+        # 2. 주요 차트 현황 (3x2 레이아웃 및 레이블 추가)
         # ===================================
-        st.header("2. 주요 차트 현황")
+        st.header("2. 주요 차트 현황 (3x2 레이아웃)")
 
         # -----------------------------------
-        # Row 1: 차트 3개 (3열)
+        # Row 1: 차트 3개
         # -----------------------------------
         col_r1_c1, col_r1_c2, col_r1_c3 = st.columns(3)
 
@@ -189,24 +189,34 @@ if master_df is not None and activities_df is not None:
             # Bar Chart (Volume)
             bar_chart = alt.Chart(timeline_data).mark_bar(color='#4c78a8').encode(
                 x=alt.X('YearMonth', title='월별 마감일', sort=timeline_data['YearMonth'].tolist()),
-                y=alt.Y('Count', title='활동 건수', axis=alt.Axis(format='d')), # 레이블 및 단위 추가
-                tooltip=['YearMonth', alt.Tooltip('Count', title='활동 건수', format='d')]
-            ).properties(title="")
-
-            # Line Chart (Trend)
-            line_chart = alt.Chart(timeline_data).mark_line(point=True, color='red').encode(
-                x=alt.X('YearMonth', title='월별 마감일'),
-                y=alt.Y('Count', title='활동 건수'),
+                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d')), 
                 tooltip=['YearMonth', alt.Tooltip('Count', title='활동 건수', format='d')]
             )
 
-            chart3 = (bar_chart + line_chart).interactive()
+            # Text Label for Bar Chart
+            text_bar = bar_chart.mark_text(
+                align='center',
+                baseline='bottom',
+                dy=-5, # Offset to place text above the bar
+                color='white'
+            ).encode(
+                text=alt.Text('Count', format='d')
+            )
+
+            # Line Chart (Trend)
+            line_chart = alt.Chart(timeline_data).mark_line(point=True, color='red').encode(
+                x=alt.X('YearMonth'), 
+                y=alt.Y('Count'), 
+                tooltip=['YearMonth', alt.Tooltip('Count', title='활동 건수', format='d')]
+            )
+
+            chart3 = (bar_chart + text_bar + line_chart).interactive()
             st.altair_chart(chart3, use_container_width=True)
 
         st.divider()
 
         # -----------------------------------
-        # Row 2: 차트 3개 (3열)
+        # Row 2: 차트 3개
         # -----------------------------------
         col_r2_c1, col_r2_c2, col_r2_c3 = st.columns(3)
 
@@ -215,11 +225,24 @@ if master_df is not None and activities_df is not None:
             completed_df = activities_df[activities_df['Status'] == 'Done'].copy()
             completed_df['YearMonth'] = completed_df['Due_Date'].dt.to_period('M').astype(str)
             completed_timeline = completed_df.groupby('YearMonth').size().reset_index(name='Completed')
-            chart4 = alt.Chart(completed_timeline).mark_line(point=True, color='green').encode(
+            
+            line = alt.Chart(completed_timeline).mark_line(point=True, color='green').encode(
                 x=alt.X('YearMonth', title='월별 완료 시점', sort=completed_timeline['YearMonth'].tolist()),
-                y=alt.Y('Completed', title='완료된 활동 건수', axis=alt.Axis(format='d')), # 레이블 및 단위 추가
+                y=alt.Y('Completed', title='완료된 활동 건수 (건)', axis=alt.Axis(format='d')), 
                 tooltip=['YearMonth', alt.Tooltip('Completed', title='완료된 활동 건수', format='d')]
-            ).interactive()
+            )
+            
+            # Text Label for Line Chart
+            text_line = line.mark_text(
+                align='left',
+                baseline='middle',
+                dx=5, # Offset to place text near the point
+                color='green'
+            ).encode(
+                text=alt.Text('Completed', format='d')
+            )
+            
+            chart4 = (line + text_line).interactive()
             st.altair_chart(chart4, use_container_width=True)
 
         with col_r2_c2:
@@ -230,12 +253,12 @@ if master_df is not None and activities_df is not None:
             ).reset_index()
 
             bar = alt.Chart(country_summary).mark_bar().encode(
-                x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f')), # 레이블 및 단위 확인
+                x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f')), 
                 y=alt.Y('Country', title='국가', sort='-x'),
                 tooltip=['Country', alt.Tooltip('Total_Budget', title='총 예산', format='$,.0f')]
             )
             line = alt.Chart(country_summary).mark_tick(color='red', thickness=2, size=20).encode(
-                x=alt.X('Avg_Completion', title='평균 완료율 (%)', axis=alt.Axis(format='.1f')), # 레이블 및 단위 확인
+                x=alt.X('Avg_Completion', title='평균 완료율 (%)', axis=alt.Axis(format='.1f')), 
                 y=alt.Y('Country'),
                 tooltip=['Country', alt.Tooltip('Avg_Completion', title='평균 완료율', format='.1f')]
             )
@@ -243,31 +266,56 @@ if master_df is not None and activities_df is not None:
             st.altair_chart(chart5, use_container_width=True)
         
         with col_r2_c3:
-            st.subheader("활동 유형별 분포")
+            st.subheader("활동 유형별 분포 (세로 막대)")
             type_counts = activities_df['Activity_Type'].value_counts().reset_index()
             type_counts.columns = ['Type', 'Count']
-            chart6 = alt.Chart(type_counts).mark_bar().encode(
-                x=alt.X('Count', title='활동 건수', axis=alt.Axis(format='d')), # 레이블 및 단위 추가
-                y=alt.Y('Type', title='활동 유형', sort='-x'),
+            
+            bar = alt.Chart(type_counts).mark_bar().encode(
+                x=alt.X('Type', title='활동 유형'), # 세로 막대로 변경
+                y=alt.Y('Count', title='활동 건수 (건)', axis=alt.Axis(format='d')), 
                 tooltip=['Type', alt.Tooltip('Count', title='활동 건수', format='d')]
-            ).interactive()
+            )
+            
+            # Text Label for Bar Chart
+            text_bar = bar.mark_text(
+                align='center',
+                baseline='bottom',
+                dy=-5,
+                color='white'
+            ).encode(
+                text=alt.Text('Count', format='d')
+            )
+
+            chart6 = (bar + text_bar).interactive()
             st.altair_chart(chart6, use_container_width=True)
 
         st.divider()
 
         # -----------------------------------
-        # Row 3: 새로운 차트 - 우수 KOL 순위
+        # Row 3: 새로운 차트 - 우수 KOL 순위 (세로 막대)
         # -----------------------------------
         st.subheader("🏆 우수 KOL별 완료율 순위 (Top 10)")
         
-        top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10)
+        top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         
-        chart7 = alt.Chart(top_kols).mark_bar().encode(
-            y=alt.Y('Name', title='KOL 이름', sort='-x'),
-            x=alt.X('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f')), # 레이블 및 단위 추가
+        bar = alt.Chart(top_kols).mark_bar().encode(
+            x=alt.X('Name', title='KOL 이름', sort=top_kols['Name'].tolist()), # 세로 막대로 변경
+            y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f')), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
             tooltip=['Name', alt.Tooltip('Completion_Rate', title='완료율', format='.1f')]
-        ).interactive()
+        )
+        
+        # Text Label for Bar Chart
+        text_bar = bar.mark_text(
+            align='center',
+            baseline='bottom',
+            dy=-5,
+            color='white'
+        ).encode(
+            text=alt.Text('Completion_Rate', format='.1f')
+        )
+        
+        chart7 = (bar + text_bar).interactive()
         st.altair_chart(chart7, use_container_width=True)
 
 
@@ -317,7 +365,7 @@ if master_df is not None and activities_df is not None:
         # 4. 원본 데이터 (조건부 서식 적용)
         # ===================================
         st.header("4. 원본 데이터 (Raw Data - 시각화 적용)")
-        today = datetime.now() # 오늘 날짜 다시 선언
+        today = datetime.now() 
 
         # --- master_df 조건부 서식 적용 ---
         st.subheader("KOL 마스터")
@@ -333,7 +381,7 @@ if master_df is not None and activities_df is not None:
             use_container_width=True
         )
 
-    # --- (KOL 상세 뷰 - 조건부 서식 적용) ---
+    # --- (KOL 상세 뷰 - 이전과 동일) ---
     else:
         try:
             selected_kol_id = master_df[master_df['Name'] == selected_name]['Kol_ID'].iloc[0]
