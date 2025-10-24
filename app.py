@@ -6,14 +6,8 @@ import os
 import altair as alt
 from datetime import datetime, timedelta 
 
-# (import 문 아래에 추가)
-master_df = None
-activities_df = None
-
-# (이후 load_data_from_gsheet() 함수가 시작됩니다)
-
 # -----------------------------------------------------------------
-# 1. Google Sheets 인증 및 데이터 로드 (이전과 동일)
+# 1. Google Sheets 인증 및 데이터 로드 (최종 항목 반영)
 # -----------------------------------------------------------------
 
 @st.cache_data(ttl=60) 
@@ -38,7 +32,7 @@ def load_data_from_gsheet():
             st.error("인증 실패: 'google_credentials.json' 파일을 찾거나 Streamlit 'Secrets' 설정을 확인하세요.")
             return None, None
 
-        # --- 데이터 로드 및 계산 (이전과 동일) ---
+        # --- 데이터 로드 ---
         sh = gc.open(SPREADSHEET_NAME)
         master_df = get_as_dataframe(sh.worksheet(WORKSHEET1_NAME)).dropna(how='all') 
         activities_df = get_as_dataframe(sh.worksheet(WORKSHEET2_NAME)).dropna(how='all')
@@ -49,6 +43,7 @@ def load_data_from_gsheet():
         master_df['Budget (USD)'] = pd.to_numeric(master_df['Budget (USD)'], errors='coerce').fillna(0)
         master_df['Spent (USD)'] = pd.to_numeric(master_df['Spent (USD)'], errors='coerce').fillna(0)
         
+        # 완료율, 활용률 계산 및 병합 (이전과 동일)
         activities_df['Done'] = activities_df['Status'].apply(lambda x: 1 if x == 'Done' else 0)
         activity_summary = activities_df.groupby('Kol_ID').agg(Total=('Activity_ID', 'count'), Done=('Done', 'sum')).reset_index()
         activity_summary['Completion_Rate'] = (activity_summary['Done'] / activity_summary['Total']) * 100
@@ -64,7 +59,7 @@ def load_data_from_gsheet():
         return None, None
 
 # -----------------------------------------------------------------
-# 2. 조건부 서식 함수 정의 (이전과 동일)
+# 3. 조건부 서식 함수 정의 (로데이터 시각화)
 # -----------------------------------------------------------------
 
 def highlight_master_row(row, today, alert_days=30):
@@ -74,6 +69,7 @@ def highlight_master_row(row, today, alert_days=30):
                   (contract_end.date() <= (today + timedelta(days=alert_days)).date())
     
     if is_imminent:
+        # 노란색 배경으로 만료 임박 강조
         return ['background-color: #ffd70040'] * len(row) 
     return [''] * len(row)
 
@@ -85,46 +81,18 @@ def highlight_activity_row(row, today):
     is_overdue = (due_date.date() < today.date()) and (status != 'Done')
     
     if is_overdue:
+        # 빨간색 배경으로 지연 강조
         return ['background-color: #ff4c4c40'] * len(row)
     return [''] * len(row)
 
 # -----------------------------------------------------------------
-# 3. Streamlit UI 그리기 (배경색 설정 추가)
+# 4. Streamlit UI 그리기
 # -----------------------------------------------------------------
 
-# [1] 페이지 레이아웃 설정
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
-
-# [2] 💡 배경색 및 테마 설정 (Custom CSS 또는 st.set_theme 사용)
-# st.set_page_config의 theme 인수가 Streamlit 1.x 버전에서는 제한적이므로,
-# 임시로 CSS 주입을 통해 색상 팔레트를 Dark로 고정합니다.
-st.markdown(
-    """
-    <style>
-    /* 배경색을 어둡게 */
-    .stApp {
-        background-color: #121212; /* 매우 어두운 회색 */
-    }
-    /* 헤더 및 텍스트 색상을 밝게 */
-    h1, h2, h3, h4, h5, h6, .st-bh, .st-bs, .st-bw {
-        color: #ffffff; 
-    }
-    /* 사이드바 배경색을 더 어둡게 */
-    [data-testid="stSidebar"] {
-        background-color: #0d0d0d; 
-    }
-    /* 차트 컨테이너 배경도 어둡게 */
-    .stDataFrame, .stPlotlyChart {
-        background-color: #1e1e1e;
-        border-radius: 10px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
 st.title("📊 KOL 활동 관리 대시보드 (MVP)")
+
+master_df, activities_df = load_data_from_gsheet()
 
 # ... (사이드바 및 KOL 상세 조회 필터는 동일) ...
 st.sidebar.subheader("KOL 상세 조회 필터")
@@ -297,14 +265,14 @@ if master_df is not None and activities_df is not None:
         # --- master_df 조건부 서식 적용 ---
         st.subheader("KOL 마스터")
         st.dataframe(
-            master_df.style.apply(highlight_master_row, today=datetime.now(), axis=1).format({'Contract_End': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}),
+            master_df.style.apply(highlight_master_row, today=datetime.now(), axis=1).format({'Contract_End': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}).astype(str),
             use_container_width=True
         ) 
         
         # --- activities_df 조건부 서식 적용 ---
         st.subheader("모든 활동 내역")
         st.dataframe(
-            activities_df.style.apply(highlight_activity_row, today=datetime.now(), axis=1).format({'Due_Date': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}),
+            activities_df.style.apply(highlight_activity_row, today=datetime.now(), axis=1).format({'Due_Date': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}).astype(str),
             use_container_width=True
         )
 
@@ -357,7 +325,7 @@ if master_df is not None and activities_df is not None:
                 st.subheader("활동 상세 목록 (Raw Data)")
                 # --- 상세 뷰 로데이터 조건부 서식 적용 ---
                 st.dataframe(
-                    kol_activities.style.apply(highlight_activity_row, today=datetime.now(), axis=1).format({'Due_Date': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}),
+                    kol_activities_display.style.apply(highlight_activity_row, today=datetime.now(), axis=1).format({'Due_Date': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else ''}).astype(str),
                     column_config={
                         "File_Link": None, 
                         "자료 열람": st.column_config.LinkColumn(
