@@ -4,6 +4,7 @@ import pandas as pd
 from gspread_dataframe import get_as_dataframe
 import os
 import altair as alt
+alt.themes.enable('streamlit') # <-- 이 줄을 추가하세요
 from datetime import datetime, timedelta 
 
 # -----------------------------------------------------------------
