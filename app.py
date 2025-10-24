@@ -338,7 +338,7 @@ if master_df is not None and activities_df is not None:
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar().encode( # 💡 size=40 제거하여 자동 폭 설정
+       bar = alt.Chart(top_kols).mark_bar().encode( # 💡 size 인자 제거하여 컨테이너 폭에 맞게 자동 조절
             x=alt.X('Name', title='KOL 이름', sort='-y'), 
             y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
