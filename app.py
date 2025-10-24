@@ -6,6 +6,12 @@ import os
 import altair as alt
 from datetime import datetime, timedelta 
 
+# (import 문 아래에 추가)
+master_df = None
+activities_df = None
+
+# (이후 load_data_from_gsheet() 함수가 시작됩니다)
+
 # -----------------------------------------------------------------
 # 1. Google Sheets 인증 및 데이터 로드 (이전과 동일)
 # -----------------------------------------------------------------
