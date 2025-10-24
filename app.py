@@ -7,7 +7,7 @@ import altair as alt
 from datetime import datetime, timedelta 
 
 # -----------------------------------------------------------------
-# 0. 전역 변수 선언 및 유틸리티 함수 (이전과 동일)
+# 0. 전역 변수 선언 및 유틸리티 함수
 # -----------------------------------------------------------------
 master_df = None
 activities_df = None
@@ -55,8 +55,8 @@ def load_data_from_gsheet():
 
         # --- 데이터 로드 ---
         sh = gc.open(SPREADSHEET_NAME)
-        master_df = get_as_dataframe(sh.worksheet(WORKSHEET1_NAME)).dropna(how='all') 
-        activities_df = get_as_dataframe(sh.worksheet(WORKSHEET2_NAME)).dropna(how='all')
+        master_df = get_as_dataframe(sh.worksheet(WORKSHE1_NAME)).dropna(how='all') 
+        activities_df = get_as_dataframe(sh.worksheet(WORKSHE2_NAME)).dropna(how='all')
         
         # --- 데이터 타입 변환 및 계산 ---
         master_df['Contract_End'] = pd.to_datetime(master_df['Contract_End'], errors='coerce')
@@ -162,7 +162,7 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 2. 주요 차트 현황 (3x2 레이아웃 및 레이블 수정 완료)
+        # 2. 주요 차트 현황 (3x2 레이아웃 및 축 설정)
         # ===================================
         st.header("2. 주요 차트 현황")
         
@@ -185,7 +185,7 @@ if master_df is not None and activities_df is not None:
             # Pie Chart
             pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Status', alt.Tooltip('Count', title='활동 건수', format='d')])
             
-            # 💡 Text Label for Pie Chart (옆에 위치)
+            # Text Label for Pie Chart (옆에 위치)
             text_labels = base.mark_text(radius=120, fill='white', fontSize=14).encode(
                 text=alt.Text('Count', format='d'),
                 order=alt.Order('Count', sort='descending')
@@ -204,7 +204,7 @@ if master_df is not None and activities_df is not None:
             # Pie Chart
             pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Type', alt.Tooltip('Count', title='KOL 건수', format='d')])
             
-            # 💡 Text Label for Pie Chart (옆에 위치)
+            # Text Label for Pie Chart (옆에 위치)
             text_labels = base.mark_text(radius=120, fill='white', fontSize=14).encode(
                 text=alt.Text('Count', format='d'),
                 order=alt.Order('Count', sort='descending')
@@ -331,14 +331,14 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # -----------------------------------
-        # Row 3: 새로운 차트 - 우수 KOL 순위 (세로 막대, 좁은 폭)
+        # Row 3: 새로운 차트 - 우수 KOL 순위 (세로 막대, 폭 자동)
         # -----------------------------------
         st.subheader("🏆 우수 KOL별 완료율 순위 (Top 10)")
         
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar(size=100).encode( # 💡 size=40으로 폭 넓게 조정
+        bar = alt.Chart(top_kols).mark_bar().encode( # 💡 size=40 제거하여 자동 폭 설정
             x=alt.X('Name', title='KOL 이름', sort='-y'), 
             y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
