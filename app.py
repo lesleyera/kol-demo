@@ -7,7 +7,7 @@ import altair as alt
 from datetime import datetime, timedelta 
 
 # -----------------------------------------------------------------
-# 0. 전역 변수 선언 및 유틸리티 함수 (이전과 동일)
+# 0. 전역 변수 선언 및 유틸리티 함수
 # -----------------------------------------------------------------
 master_df = None
 activities_df = None
@@ -55,8 +55,8 @@ def load_data_from_gsheet():
 
         # --- 데이터 로드 ---
         sh = gc.open(SPREADSHEET_NAME)
-        master_df = get_as_dataframe(sh.worksheet(WORKSHE1_NAME)).dropna(how='all') 
-        activities_df = get_as_dataframe(sh.worksheet(WORKSHE2_NAME)).dropna(how='all')
+        master_df = get_as_dataframe(sh.worksheet(WORKSHEET1_NAME)).dropna(how='all') 
+        activities_df = get_as_dataframe(sh.worksheet(WORKSHEET2_NAME)).dropna(how='all')
         
         # --- 데이터 타입 변환 및 계산 ---
         master_df['Contract_End'] = pd.to_datetime(master_df['Contract_End'], errors='coerce')
@@ -110,23 +110,12 @@ def highlight_activity_row(row, today):
     return [''] * len(row)
 
 # -----------------------------------------------------------------
-# 3. Streamlit UI 그리기 (수정 반영)
+# 3. Streamlit UI 그리기 
 # -----------------------------------------------------------------
 
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
 
-st.markdown(
-    """
-    <style>
-    .stApp { background-color: #121212; }
-    h1, h2, h3, h4, h5, h6, .st-bh, .st-bs, .st-bw { color: #ffffff; }
-    [data-testid="stSidebar"] { background-color: #0d0d0d; }
-    .stDataFrame, .stPlotlyChart { background-color: #1e1e1e; border-radius: 10px;}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
+# --- 💡💡💡 배경색 강제 설정 CSS 블록 삭제 완료 💡💡💡 ---
 
 st.title("📊 KOL 활동 관리 대시보드 (MVP)")
 
@@ -162,7 +151,7 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 2. 주요 차트 현황 (3x2 레이아웃 및 축 설정)
+        # 2. 주요 차트 현황 (3x2 레이아웃 및 레이블 수정 완료)
         # ===================================
         st.header("2. 주요 차트 현황")
         
@@ -229,7 +218,7 @@ if master_df is not None and activities_df is not None:
                 align='center',
                 baseline='bottom',
                 dy=-5, 
-                color='white'
+                color='black' # 💡 흰색 배경이므로 검은색으로 변경
             ).encode(
                 text=alt.Text('Count', format='d')
             )
@@ -296,7 +285,7 @@ if master_df is not None and activities_df is not None:
                 align='left',
                 baseline='middle',
                 dx=5,
-                color='white'
+                color='black' # 💡 흰색 배경이므로 검은색으로 변경
             ).encode(
                 text=alt.Text('Total_Budget', format='$,.0f')
             )
@@ -320,7 +309,7 @@ if master_df is not None and activities_df is not None:
                 align='center',
                 baseline='bottom',
                 dy=-5,
-                color='white'
+                color='black' # 💡 흰색 배경이므로 검은색으로 변경
             ).encode(
                 text=alt.Text('Count', format='d')
             )
@@ -338,7 +327,7 @@ if master_df is not None and activities_df is not None:
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar().encode( # 💡 size 인자 제거 완료 (가장 넓은 폭 자동 설정)
+        bar = alt.Chart(top_kols).mark_bar().encode(
             x=alt.X('Name', title='KOL 이름', sort='-y'), 
             y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
@@ -349,7 +338,7 @@ if master_df is not None and activities_df is not None:
             align='center',
             baseline='bottom',
             dy=-5,
-            color='white'
+            color='black' # 💡 흰색 배경이므로 검은색으로 변경
         ).encode(
             text=alt.Text('Completion_Rate', format='.1f')
         )
