@@ -163,16 +163,16 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # ===================================
-        # 2. 주요 차트 현황 (3x2 레이아웃, 축, 레이블 수정 완료)
+        # 2. 주요 차트 현황 (제목 수정 반영)
         # ===================================
-        st.header("2. 주요 차트 현황")
+        st.header("2. 주요 차트 현황") # 💡 괄호 삭제 완료
         
         # --- 💡 축 최대값 계산 ---
         max_count = get_max_value(activities_df.groupby('YearMonth').size().reset_index(name='Count'), 'Count')
         max_budget = get_max_value(master_df.groupby('Country')['Budget (USD)'].sum().reset_index(name='Total_Budget'), 'Total_Budget')
         
         # -----------------------------------
-        # Row 1: 차트 3개 (파이차트, 파이차트, 혼합 세로 막대+선)
+        # Row 1: 차트 3개
         # -----------------------------------
         col_r1_c1, col_r1_c2, col_r1_c3 = st.columns(3)
 
@@ -200,7 +200,6 @@ if master_df is not None and activities_df is not None:
                 
         with col_r1_c3:
             st.subheader("월별 총 활동 스케줄")
-            activities_df['YearMonth'] = activities_df['Due_Date'].dt.to_period('M').astype(str)
             timeline_data = activities_df.groupby('YearMonth').size().reset_index(name='Count')
             
             # Bar Chart (Volume)
@@ -233,7 +232,7 @@ if master_df is not None and activities_df is not None:
         st.divider()
 
         # -----------------------------------
-        # Row 2: 차트 3개 (꺾은선, 혼합 가로 막대+선, 세로 막대)
+        # Row 2: 차트 3개
         # -----------------------------------
         col_r2_c1, col_r2_c2, col_r2_c3 = st.columns(3)
 
@@ -270,6 +269,7 @@ if master_df is not None and activities_df is not None:
                 Avg_Completion=('Completion_Rate', 'mean')
             ).reset_index()
 
+            # 💡 chart5 해결: resolve_scale 대신 y축을 공유하고 x축을 독립적으로 처리
             bar = alt.Chart(country_summary).mark_bar().encode(
                 x=alt.X('Total_Budget', title='총 예산 (USD)', axis=alt.Axis(format='$,.0f'), scale=alt.Scale(domain=[0, max_budget])), 
                 y=alt.Y('Country', title='국가', sort='-x'),
@@ -280,7 +280,7 @@ if master_df is not None and activities_df is not None:
                 y=alt.Y('Country'),
                 tooltip=['Country', alt.Tooltip('Avg_Completion', title='평균 완료율', format='.1f')]
             )
-            chart5 = (bar + line).resolve_scale(y='independent').interactive()
+            chart5 = alt.layer(bar, line).resolve_scale(y='independent', x='independent').interactive() # 최종 수정된 resolve_scale
             st.altair_chart(chart5, use_container_width=True)
         
         with col_r2_c3:
@@ -318,8 +318,8 @@ if master_df is not None and activities_df is not None:
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar(size=10).encode(
-            x=alt.X('Name', title='KOL 이름', sort='-y'), # sort='-y'는 Y축 기준 내림차순 정렬
+        bar = alt.Chart(top_kols).mark_bar(size=20).encode( # 💡 size를 20으로 설정 (적당히 얇게)
+            x=alt.X('Name', title='KOL 이름', sort='-y'), 
             y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
             tooltip=['Name', alt.Tooltip('Completion_Rate', title='완료율', format='.1f')]
@@ -347,6 +347,7 @@ if master_df is not None and activities_df is not None:
         
         today = datetime.now()
         alert_found = False
+        # ... (이하 경고 및 알림 섹션 동일) ...
 
         contract_alert_date = today + timedelta(days=30)
         imminent_contracts = master_df[
