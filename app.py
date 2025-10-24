@@ -26,6 +26,7 @@ def get_max_value(df, column, is_percentage=False):
         # 건수/금액은 최대값보다 10% 크게 설정
         return max_val * 1.1 if max_val > 0 else 10
 
+
 # -----------------------------------------------------------------
 # 1. Google Sheets 인증 및 데이터 로드 (이전과 동일)
 # -----------------------------------------------------------------
@@ -184,13 +185,13 @@ if master_df is not None and activities_df is not None:
             # Pie Chart
             pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Status', alt.Tooltip('Count', title='활동 건수', format='d')])
             
-            # 💡 Text Label for Pie Chart
-            text = base.mark_text(radius=120, fill='white').encode(
+            # 💡 Text Label for Pie Chart (옆에 위치)
+            text_labels = base.mark_text(radius=120, fill='white', fontSize=14).encode(
                 text=alt.Text('Count', format='d'),
                 order=alt.Order('Count', sort='descending')
             )
 
-            chart1 = (pie + text).interactive()
+            chart1 = (pie + text_labels).interactive()
             st.altair_chart(chart1, use_container_width=True)
         
         with col_r1_c2:
@@ -203,13 +204,13 @@ if master_df is not None and activities_df is not None:
             # Pie Chart
             pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Type', alt.Tooltip('Count', title='KOL 건수', format='d')])
             
-            # 💡 Text Label for Pie Chart
-            text = base.mark_text(radius=120, fill='white').encode(
+            # 💡 Text Label for Pie Chart (옆에 위치)
+            text_labels = base.mark_text(radius=120, fill='white', fontSize=14).encode(
                 text=alt.Text('Count', format='d'),
                 order=alt.Order('Count', sort='descending')
             )
 
-            chart2 = (pie + text).interactive()
+            chart2 = (pie + text_labels).interactive()
             st.altair_chart(chart2, use_container_width=True)
                 
         with col_r1_c3:
@@ -290,7 +291,7 @@ if master_df is not None and activities_df is not None:
                 tooltip=['Country', alt.Tooltip('Total_Budget', title='총 예산', format='$,.0f')]
             )
 
-            # 💡 Text Label for Bar Chart
+            # Text Label for Bar Chart
             text_bar = bar.mark_text(
                 align='left',
                 baseline='middle',
@@ -300,7 +301,7 @@ if master_df is not None and activities_df is not None:
                 text=alt.Text('Total_Budget', format='$,.0f')
             )
 
-            st.altair_chart(bar + text_bar, use_container_width=True) # 💡 텍스트 레이블 추가
+            st.altair_chart(bar + text_bar, use_container_width=True)
         
         with col_r2_c3:
             st.subheader("활동 유형별 분포")
@@ -337,7 +338,7 @@ if master_df is not None and activities_df is not None:
         top_kols = master_df.sort_values(by='Completion_Rate', ascending=False).head(10).reset_index(drop=True)
         max_completion = get_max_value(top_kols, 'Completion_Rate', is_percentage=True)
         
-        bar = alt.Chart(top_kols).mark_bar(size=20).encode(
+        bar = alt.Chart(top_kols).mark_bar(size=40).encode( # 💡 size=40으로 폭 넓게 조정
             x=alt.X('Name', title='KOL 이름', sort='-y'), 
             y=alt.Y('Completion_Rate', title='활동 완료율 (%)', axis=alt.Axis(format='.1f'), scale=alt.Scale(domain=[0, max_completion])), 
             color=alt.Color('Completion_Rate', title='완료율 (%)', scale=alt.Scale(range='heatmap')),
@@ -423,7 +424,7 @@ if master_df is not None and activities_df is not None:
             selected_kol_id = master_df[master_df['Name'] == selected_name]['Kol_ID'].iloc[0]
             
             st.header(f"👨‍⚕️ {selected_name} 님 상세 정보")
-            kol_details = master_df[kol_details['Kol_ID'] == selected_kol_id]
+            kol_details = master_df[master_df['Kol_ID'] == selected_kol_id]
             st.dataframe(kol_details.astype(str), use_container_width=True) 
             
             st.divider()
