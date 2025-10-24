@@ -55,8 +55,8 @@ def load_data_from_gsheet():
 
         # --- 데이터 로드 ---
         sh = gc.open(SPREADSHEET_NAME)
-        master_df = get_as_dataframe(sh.worksheet(WORKSHEET1_NAME)).dropna(how='all') 
-        activities_df = get_as_dataframe(sh.worksheet(WORKSHEET2_NAME)).dropna(how='all')
+        master_df = get_as_dataframe(sh.worksheet(WORKSHE1_NAME)).dropna(how='all') 
+        activities_df = get_as_dataframe(sh.worksheet(WORKSHE2_NAME)).dropna(how='all')
         
         # --- 데이터 타입 변환 및 계산 ---
         master_df['Contract_End'] = pd.to_datetime(master_df['Contract_End'], errors='coerce')
@@ -115,7 +115,17 @@ def highlight_activity_row(row, today):
 
 st.set_page_config(page_title="KOL 대시보드 MVP", layout="wide")
 
-# --- 💡💡💡 배경색 강제 설정 CSS 블록 삭제 완료 💡💡💡 ---
+# --- 💡💡💡 CSS: Streamlit 기본 테마로 복원 (검정 배경 강제 설정 제거) 💡💡💡 ---
+# st.markdown("""
+# <style>
+#     .stApp {
+#         background-color: #000;
+#         color: #fff;
+#     }
+#     /* 기타 필요한 스타일 추가 */
+# </style>
+# """, unsafe_allow_html=True)
+# -----------------------------------------------------------------------------
 
 st.title("📊 KOL 활동 관리 대시보드 (MVP)")
 
@@ -175,7 +185,7 @@ if master_df is not None and activities_df is not None:
             pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Status', alt.Tooltip('Count', title='활동 건수', format='d')])
             
             # Text Label for Pie Chart (옆에 위치)
-            text_labels = base.mark_text(radius=120, fill='white', fontSize=14).encode(
+            text_labels = base.mark_text(radius=120, fill='black', fontSize=14).encode( # 💡 흰색 배경이므로 검은색으로 변경
                 text=alt.Text('Count', format='d'),
                 order=alt.Order('Count', sort='descending')
             )
@@ -194,7 +204,7 @@ if master_df is not None and activities_df is not None:
             pie = base.mark_arc(outerRadius=100, innerRadius=60).encode(tooltip=['Type', alt.Tooltip('Count', title='KOL 건수', format='d')])
             
             # Text Label for Pie Chart (옆에 위치)
-            text_labels = base.mark_text(radius=120, fill='white', fontSize=14).encode(
+            text_labels = base.mark_text(radius=120, fill='black', fontSize=14).encode( # 💡 흰색 배경이므로 검은색으로 변경
                 text=alt.Text('Count', format='d'),
                 order=alt.Order('Count', sort='descending')
             )
